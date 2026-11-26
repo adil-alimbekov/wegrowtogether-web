@@ -1,7 +1,7 @@
 // Связь с сервером (Supabase). Если переменные окружения не заданы, сайт работает
 // в демо-режиме: всё хранится только в браузере, как раньше.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { getState, onChange, resetAll, setState, type Child, type Consent, type State } from './store'
+import { getState, giveConsent, hasConsent, onChange, resetAll, setState, type Child, type Consent, type State } from './store'
 import type { ParseResult } from './parser'
 import type { CrisisFlag } from './crisis'
 
@@ -21,7 +21,7 @@ const normPhone = (p: string) => '+' + p.replace(/\D/g, '')
 export async function sendCode(c: Contact) {
   if (!sb) return
   const { error } = c.method === 'email'
-    ? await sb.auth.signInWithOtp({ email: c.value.trim(), options: { shouldCreateUser: true } })
+    ? await sb.auth.signInWithOtp({ email: c.value.trim(), options: { shouldCreateUser: true, emailRedirectTo: location.origin + location.pathname } })
     : await sb.auth.signInWithOtp({ phone: normPhone(c.value), options: { shouldCreateUser: true } })
   if (error) throw error
 }
@@ -32,7 +32,44 @@ export async function verifyCode(c: Contact, code: string) {
     ? await sb.auth.verifyOtp({ email: c.value.trim(), token: code, type: 'email' })
     : await sb.auth.verifyOtp({ phone: normPhone(c.value), token: code, type: 'sms' })
   if (error) throw error
-  await pullAll()
+  await afterSignIn()
+}
+
+// Данные регистрации (имя, согласия) ждут в браузере, пока человек не войдёт:
+// по коду из письма или по ссылке, открытой в новой вкладке того же браузера.
+const PENDING = 'wg_pending_reg'
+type Pending = { name: string; consents: ('B' | 'C' | 'E')[] }
+export function savePending(p: Pending | null) {
+  if (p) localStorage.setItem(PENDING, JSON.stringify(p)); else localStorage.removeItem(PENDING)
+}
+function takePending(): Pending | null {
+  const r = localStorage.getItem(PENDING); localStorage.removeItem(PENDING)
+  try { return r ? JSON.parse(r) : null } catch { return null }
+}
+
+let afterP: Promise<void> | null = null
+/** После входа: загрузить семью, применить данные регистрации, уйти со страницы входа. */
+export function afterSignIn() {
+  afterP ??= (async () => {
+    await pullAll()
+    // Обе вкладки (с формой и со ссылкой из письма) видят вход, но данные регистрации
+    // должна применить только одна; вторая потом перечитывает сервер.
+    const apply = async () => {
+      const p = takePending()
+      if (p) {
+        if (p.name) setState(s => (s.user ? { user: { ...s.user, name: p.name } } : {}))
+        for (const t of p.consents) if (!hasConsent(getState(), t)) giveConsent(t)
+        await queue
+      }
+      return p
+    }
+    const p = navigator.locks ? await navigator.locks.request('wg_pending', apply) : await apply()
+    if (!p && !hasConsent(getState(), 'B')) await pullAll()
+    const h = location.hash.slice(1)
+    if (h.includes('access_token') || h.includes('=')) history.replaceState(null, '', location.pathname + location.search)
+    if (['', 'login', 'register'].includes(h) || h.includes('=')) location.hash = getState().onboarded ? 'home' : 'status'
+  })().finally(() => { setTimeout(() => { afterP = null }, 2000) })
+  return afterP
 }
 
 /** Загружает всё про семью с сервера в локальное состояние. */
@@ -180,7 +217,12 @@ export function startSync() {
     if (syncing) return // это данные, только что пришедшие с сервера
     queue = queue.then(() => push(prev, next)).catch(e => console.error(e))
   })
-  sb.auth.getSession().then(({ data }) => { if (data.session) pullAll().catch(e => console.error(e)) })
+  // Ссылка из письма устарела или уже использована
+  if (/error_code=/.test(location.hash)) { history.replaceState(null, '', location.pathname); location.hash = 'login?expired' }
+  sb.auth.onAuthStateChange((ev, session) => {
+    if (ev === 'SIGNED_IN' && session && !getState().live) setTimeout(() => afterSignIn().catch(e => console.error(e)), 0)
+  })
+  sb.auth.getSession().then(({ data }) => { if (data.session) afterSignIn().catch(e => console.error(e)) })
 }
 export const waitSync = () => queue
 export { getState }

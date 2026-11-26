@@ -24,7 +24,7 @@ npm test && npm run typecheck
 1. Supabase → New project (регион ближе к КР, например Frankfurt).
 2. `npx supabase link --project-ref <ref>` и `npx supabase db push` — создаст таблицы и правила доступа.
 3. Supabase → Authentication → Email Templates → «Magic Link» и «Confirm signup»: вставить `supabase/templates/otp.html` (в письме должен быть `{{ .Token }}`).
-4. Supabase → Authentication → URL Configuration → Site URL = адрес сайта.
+4. Supabase → Authentication → URL Configuration: Site URL = адрес сайта, в Redirect URLs добавить `https://<адрес>/**`. Вход работает и по коду, и по ссылке из стандартного письма Supabase (шаблон с `{{ .Token }}` можно поставить только после подключения своего SMTP).
 5. Для продакшен-почты: Authentication → SMTP (Resend, Postmark и т. п.) — встроенная почта Supabase шлёт мало писем в час.
 6. Vercel → Import Git Repository → переменные из `.env.example` → Deploy.
 7. Включить `pg_cron` и задачу очистки расшифровок (см. конец миграции).

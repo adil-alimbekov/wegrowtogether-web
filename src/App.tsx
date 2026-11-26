@@ -12,10 +12,10 @@ import { Home } from './screens/Home'
 import { ChildForm, PregnancyForm } from './screens/ChildForm'
 import { Privacy, Sos } from './screens/Sos'
 import { useRoute } from './lib/router'
-import { useStore } from './lib/store'
+import { hasConsent, useStore } from './lib/store'
 import { applyTheme } from './lib/theme'
 import { observeReveal } from './lib/reveal'
-import { startSync } from './lib/backend'
+import { LIVE, startSync } from './lib/backend'
 
 startSync()
 
@@ -25,6 +25,7 @@ export default function App() {
   const lang = useStore(s => s.lang)
   const user = useStore(s => s.user)
   const onboarded = useStore(s => s.onboarded)
+  const agreed = useStore(s => hasConsent(s, 'B') && hasConsent(s, 'C'))
 
   useEffect(() => {
     applyTheme(theme)
@@ -40,6 +41,7 @@ export default function App() {
   const needUser = ['status', 'story', 'confirm', 'picks', 'home', 'child-new', 'pregnancy'].includes(route) || route.startsWith('child-')
   let screen
   if (needUser && !user) screen = <Register />
+  else if (LIVE && user && !agreed && !['', 'sos', 'privacy'].includes(route)) screen = <Register key="finish" finish />
   else if (route === 'login') screen = user && onboarded ? <Home /> : <Register key="login" login />
   else if (route === 'register') screen = user ? (onboarded ? <Home /> : <Status />) : <Register />
   else if (route === 'status') screen = <Status />
