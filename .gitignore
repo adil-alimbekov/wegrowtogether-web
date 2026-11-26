@@ -4,3 +4,5 @@ dist
 .env
 supabase/.temp
 .vercel
+supabase/.branches
+*.tsbuildinfo
