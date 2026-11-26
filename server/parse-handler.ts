@@ -1,8 +1,8 @@
 // POST /api/parse — разбор рассказа. Проверяет вход и согласие E, затем вызывает Claude.
 // Любая ошибка возвращает 503, и браузер переходит на локальный разбор.
 import { createClient } from '@supabase/supabase-js'
-import { parseWithClaude, PROMPT_VERSION } from './llm'
-import { scanCrisis } from '../src/lib/crisis'
+import { parseWithClaude, PROMPT_VERSION } from './llm.js'
+import { scanCrisis } from '../src/lib/crisis.js'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 

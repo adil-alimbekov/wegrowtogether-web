@@ -1,6 +1,6 @@
 // Локальный сервер для /api/* (в продакшене это делает Vercel). Запуск: npm run dev:api
 import { createServer } from 'node:http'
-import { handleParse } from './parse-handler'
+import { handleParse } from './parse-handler.js'
 
 const port = Number(process.env.API_PORT ?? 8787)
 createServer(async (req, res) => {
